@@ -1,0 +1,167 @@
+############################################################
+# WHOLE-GENOME READ ALIGNMENT WORKFLOW (TRAINING VERSION)
+# Organism: Escherichia coli
+# Sample: SRR36879872
+# Endpoint: Sorted & indexed BAM + IGV visualization
+############################################################
+
+
+############################
+# STEP 0: Install required tools (run once)
+############################
+
+# NCBI Entrez tools (for querying SRA)
+sudo apt update
+sudo apt install -y ncbi-entrez-direct
+
+# SRA Toolkit (prefetch, fasterq-dump)
+sudo apt install -y sra-toolkit
+
+# QC, alignment, and BAM processing
+sudo apt install -y fastqc bwa samtools
+
+
+############################
+# STEP 1: Download SRA data (ONE sample)
+############################
+
+# Create a directory to store SRA files
+mkdir -p sra
+
+# Download the SRA file for one run ID
+prefetch --resume yes -O sra SRR36879872
+
+# At this point, the file exists as:
+# sra/SRR36879872/SRR36879872.sra
+
+
+############################
+# STEP 2: Convert SRA to FASTQ
+############################
+
+# Create output directory for FASTQ files
+mkdir -p fastq_files
+
+# Convert .sra to paired-end FASTQ files
+fasterq-dump sra/SRR36879872/SRR36879872.sra \
+  --split-files \
+  --threads 4 \
+  -O fastq_files
+
+# Output:
+# fastq_files/SRR36879872_1.fastq
+# fastq_files/SRR36879872_2.fastq
+
+
+############################
+# STEP 3: Quality control of FASTQ files
+############################
+
+# Create directory for FastQC results
+mkdir -p fastqc_output
+
+# Run FastQC on the FASTQ files
+fastqc SRR36879872_1.fastq fastq_files SRR36879872_2.fastq -o fastqc_output 
+fastqc *fastq -o fastqc_output
+
+############################
+# STEP 4: Download reference genome
+############################
+
+# Create directory for reference genome
+mkdir -p reference_genome
+cd reference_genome
+
+# Download E. coli K-12 MG1655 reference genome (FASTA)
+wget -O K12_MG1655.fna.gz \
+ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz
+
+# Optional: Download GenBank annotation file
+wget -O K12_MG1655.gbff.gz \
+ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.gbff.gz
+
+# E. coli O157:H7 Sakai complete genome
+wget -O Ecoli_Sakai.fna.gz \
+ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/008/865/GCF_000008865.2_ASM886v2/GCF_000008865.2_ASM886v2_genomic.fna.gz
+
+wget -O Ecoli_Sakai.gbff.gz \
+ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/008/865/GCF_000008865.2_ASM886v2/GCF_000008865.2_ASM886v2_genomic.gff3.gz
+
+
+# Decompress FASTA file
+gunzip K12_MG1655.fna.gz
+
+
+############################
+# STEP 5: Index the reference genome
+############################
+
+# This prepares the genome for alignment
+bwa index K12_MG1655.fna #Lab strain
+bwa index sakai.fna #Pathogenic strain
+
+
+############################
+# STEP 6: Align reads to the reference genome
+############################
+
+# Create directory for alignment outputs
+mkdir -p ../sam_bam_files
+
+# Align paired-end reads using BWA-MEM
+# -t 4 → use 4 CPU threads
+# Laboratory strain
+bwa mem -t 4 K12_MG1655.fna \
+  ../fastq_files/SRR36879872_1.fastq \
+  ../fastq_files/SRR36879872_2.fastq \
+  > ../sam_bam_files/SRR36879872.sam
+
+#Pathogenic strain
+bwa mem -t 4 sakai.fna \
+  ../fastq_files/SRR36879872_1.fastq \
+  ../fastq_files/SRR36879872_2.fastq \
+  > ../sam_bam_files/SRR36879872.sam
+
+
+
+############################
+# STEP 7: Convert SAM to BAM
+############################
+
+cd ../sam_bam_files
+
+# Convert SAM (text) to BAM (binary, compressed)
+samtools view -Sb SRR36879872.sam > SRR36879872.bam
+
+
+############################
+# STEP 8: Sort BAM file
+############################
+
+# Sorting is required for indexing and IGV visualization
+samtools sort SRR36879872.bam -o SRR36879872.sorted.bam
+
+
+############################
+# STEP 9: Index sorted BAM file
+############################
+
+# Creates an index (.bai) file for fast access
+samtools index SRR36879872.sorted.bam
+
+
+############################
+# STEP 10: Alignment quality summary
+############################
+
+# Generate basic alignment statistics
+samtools flagstat SRR36879872.sorted.bam
+
+
+############################################################
+# ENDPOINT:
+# - SRR36879872.sorted.bam
+# - SRR36879872.sorted.bam.bai
+#
+# These files can now be loaded into IGV
+############################################################
