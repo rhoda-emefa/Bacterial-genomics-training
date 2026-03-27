@@ -1,4 +1,4 @@
-UHAS Bacterial Genomics (Dry Lab Workflow)
+## UHAS Bacterial Genomics (Dry Lab Workflow)
 
 This repository documents the dry lab component of the Bacterial Genomics training at the University of Health and Allied Sciences (UHAS). The work focuses on whole-genome read alignment and processing of bacterial sequencing data using standard bioinformatics tools in a Linux environment.
 
